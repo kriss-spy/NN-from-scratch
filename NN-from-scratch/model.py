@@ -83,7 +83,7 @@ size: {self.size}
         )
 
 
-def squared_loss(self, y_pred, y_label):
+def squared_loss(y_pred, y_label):
     return 0.5 * (y_pred - y_label) ** 2
 
 

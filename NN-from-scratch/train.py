@@ -1,5 +1,6 @@
 # my_neural_net/train.py
 import numpy as np
+import matplotlib.pyplot as plt
 from .model import MLP, fc_layer
 
 input_size = 5
@@ -40,13 +41,21 @@ def train(epoch, learning_rate):
     # model.print_info()
 
     print("train start\n")
-
+    results = np.zeros(epoch)
     for i in range(epoch):
         model.fit(X, Y, learning_rate)
-        results, values = model.predict(X)
-        print(results)
+        result, values = model.predict(X)
+        # print(result)
+        results[i] = result
 
+    turns = [i for i in range(1, epoch + 1)]
+    training_errors = 0.5 * (results - Y) ** 2
+    for i in range(epoch):
+        print(training_errors[i])
+    plt.plot(turns, training_errors)
+    plt.title("training error")
+    plt.show()
     return model
 
 
-train(50, 0.1)
+train(20, 0.1)
