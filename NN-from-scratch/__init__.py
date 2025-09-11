@@ -2,4 +2,4 @@
 __version__ = "0.1.0"
 __author__ = "Your Name"
 
-from .model import MLP, layer
+from .model import MLP, fc_layer
