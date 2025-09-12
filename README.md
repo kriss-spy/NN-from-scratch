@@ -8,7 +8,7 @@ for learning purpose
 - [X] MLP with fixed architecture
 - [X] MLP training
 - [ ] MLP with flexible architecture
-- [ ] training visualization
+- [X] training visualization
 - [ ] more data and vectorization
 - [ ] RNN
 - [ ] LSTM
