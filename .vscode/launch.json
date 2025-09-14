@@ -1,14 +1,7 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Debug NN-from-scratch",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/NN-from-scratch/train.py",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "cwd": "${workspaceFolder}/NN-from-scratch"
-        }
-    ]
+    "name": "Debug NN-from-scratch.test",
+    "type": "python",
+    "request": "launch",
+    "module": "NN-from-scratch.test",
+    "console": "integratedTerminal"
 }

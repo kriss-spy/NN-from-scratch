@@ -4,6 +4,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+def X_scaler(data):
+    # scale to standard normal distribution
+    mean = np.mean(data, axis=1, keepdims=True)
+    var = np.var(data)
+    return (data - mean) / np.sqrt(var), mean, var
+
+def Y_scaler(data):
+    # scale to standard normal distribution
+    mean = np.mean(data)
+    var = np.var(data)
+    return (data - mean) / np.sqrt(var), mean, var
+
 def sigmoid(x):
     """sigmoid function
 
@@ -47,12 +59,12 @@ class unit:
         """forward input values to get unit output
 
         Args:
-            values (ndarray[ndarray[float]]): input values
+            values (ndarray): input values of (n, m)
 
         Returns:
-            float: unit output
+            ndarray: unit output of (1, m)
         """
-        result = np.dot(values.T, self.weights)
+        result = np.dot(values.T, self.weights).T
         if self.activation == "linear":
             return result
         elif self.activation == "sigmoid":
@@ -77,14 +89,16 @@ class fc_layer:
         """get layer output from input values
 
         Args:
-            values (ndarray[ndarray[float]]): input values as column vector
+            values (ndarray): input values of (prev_size, m)
 
         Returns:
-            ndarray[ndarray[float]]: layer output values as column vector
+            ndarray: layer output values of (size, m)
         """
-        return np.array([unit.step(values) for unit in self.units]).reshape(
-            -1, 1
-        )  # column vector
+        # return np.array([unit.step(values) for unit in self.units]).reshape(-1, 1)
+        outputs = np.empty((0, values.shape[1]))
+        for unit in self.units:
+            outputs = np.vstack((outputs, unit.step(values)))
+        return outputs
 
     def print_info(self):
         print(
@@ -95,10 +109,29 @@ size: {self.size}
 
 
 def squared_loss(y_pred, y_label):
-    return 0.5 * (y_pred - y_label) ** 2
+    """squared loss function
+    also support stochastic GD
+
+    Args:
+        y_pred (ndarray): numpy array of shape (n, 1)
+        y_label (ndarray): numpy array of shape (n, 1)
+
+    Returns:
+        float: float valued squared loss
+    """
+    return np.sum(0.5 * (y_pred - y_label) ** 2)
 
 
 def d_squared_loss(y_pred, y_label):
+    """gradient of squared loss to y_pred
+    also support stochastic GD
+    Args:
+         y_pred (ndarray): numpy array of shape (n, 1)
+         y_label (ndarray): numpy array of shape (n, 1)
+
+     Returns:
+         ndarray: (n, 1) array of partial derivatives
+    """
     return y_pred - y_label
 
 
@@ -123,38 +156,62 @@ class MLP:
         except IndexError:
             print("[ERROR] layers empty, cannot pop layer\n")
 
-    def fit(self, X, Y, learning_rate):
+    def fit(self, X, y_label, learning_rate, gd_method):
         y_pred, values = self.predict(X)
         layer1 = self.layers[0]
         layer2 = self.layers[1]
-        for j in range(layer2.size):
-            layer2.units[0].weights[j] -= (
-                learning_rate * d_squared_loss(y_pred, Y) * values[1][j][0]
-            )
-        for j in range(layer1.units[j].nweights):
-            for k in range(layer1.size):
-                layer1.units[k].weights[j][0] -= (
-                    learning_rate
-                    * d_squared_loss(y_pred, Y)
-                    * layer2.units[0].weights[k]
-                    * values[1][k][0]
-                    * (1 - values[1][k][0])
-                    * X[j]
-                )
 
-    def train(self, X, Y, epoch, learning_rate, visualizing=False):
-        input_size = len(X)
+        if gd_method == "stochastic":
+            for j in range(layer2.size):
+                layer2.units[0].weights[j] -= (
+                    learning_rate * d_squared_loss(y_pred, y_label) * values[1][j][0]
+                )
+            for j in range(layer1.units[j].nweights):
+                for k in range(layer1.size):
+                    layer1.units[k].weights[j][0] -= (
+                        learning_rate
+                        * d_squared_loss(y_pred, y_label)
+                        * layer2.units[0].weights[k]
+                        * values[1][k][0]
+                        * (1 - values[1][k][0])
+                        * X[j]
+                    )
+        elif gd_method == "batch":
+            input_size = X.shape[1]
+            for j in range(layer2.size):
+                gradient = 0
+                for i in range(input_size):
+                    gradient += d_squared_loss(y_pred[i], y_label[i]) * values[1][j][0]
+                layer2.units[0].weights[j][0] -= learning_rate * gradient
+            for j in range(layer1.units[j].nweights):
+                for k in range(layer1.size):
+                    gradient = 0
+                    for i in range(input_size):
+                        gradient += (
+                            d_squared_loss(y_pred[i], y_label[i])
+                            * layer2.units[0].weights[k][0]
+                            * values[1][k][i]
+                            * (1 - values[1][k][i])
+                            * X[j][i]
+                        )
+                    layer1.units[k].weights[j][0] -= learning_rate * gradient
+        else:
+            print(f"gradient descent method {gd_method} unsupported")
+            sys.exit()
+
+    def train(self, X, Y, epoch, learning_rate, visualizing=False, gd_method="batch"):
+        input_size = X.shape[1]
 
         print("train start\n")
-        results = np.zeros(epoch)
+        results = np.zeros((epoch, input_size))
         for i in range(epoch):
-            self.fit(X, Y, learning_rate)
+            self.fit(X, Y, learning_rate, gd_method)
             result, values = self.predict(X)
             # print(result)
             results[i] = result
 
         turns = [i for i in range(1, epoch + 1)]
-        training_errors = 0.5 * (results - Y) ** 2
+        training_errors = np.sum(0.5 * (results - Y.reshape(1, -1)) ** 2, axis=1)
         for i in range(epoch):
             print(training_errors[i])
         if visualizing:
@@ -174,7 +231,7 @@ class MLP:
             values.append(results)
             if logging:
                 print(f"{i}: {results}\n")
-        return results[0][0], values
+        return results[0], values
 
     def print_info(self):
         print(f"nlayer: {self.nlayer}\n")

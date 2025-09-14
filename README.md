@@ -7,7 +7,8 @@ for learning purpose
 
 - [X] MLP with fixed architecture
 - [X] MLP training
-- [X] training visualization\
+- [X] training visualization
+- [X] boston housing dataset preprocessing
 - [ ] batch GD
 - [ ] MLP with flexible architecture
 - [ ] more data and vectorization
