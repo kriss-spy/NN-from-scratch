@@ -7,14 +7,16 @@ import matplotlib.pyplot as plt
 def X_scaler(data):
     # scale to standard normal distribution
     mean = np.mean(data, axis=1, keepdims=True)
-    var = np.var(data)
+    var = np.var(data, axis=1, keepdims=True)
     return (data - mean) / np.sqrt(var), mean, var
+
 
 def Y_scaler(data):
     # scale to standard normal distribution
     mean = np.mean(data)
     var = np.var(data)
-    return (data - mean) / np.sqrt(var), mean, var
+    return (data - mean + 0.5) / np.sqrt(var), mean, var
+
 
 def sigmoid(x):
     """sigmoid function
@@ -49,11 +51,11 @@ def d_relu(x):
 
 
 class unit:
-    def __init__(self, nweights: int, activation):
+    def __init__(self, nweights: int, activation_fn):
         self.nweights = nweights
         self.weights = np.random.rand(self.nweights, 1)  # column vector
         self.bias = None  # no bias for now
-        self.activation = activation
+        self.activation_fn = activation_fn
 
     def step(self, values):
         """forward input values to get unit output
@@ -65,45 +67,46 @@ class unit:
             ndarray: unit output of (1, m)
         """
         result = np.dot(values.T, self.weights).T
-        if self.activation == "linear":
+        if self.activation_fn == "linear":
             return result
-        elif self.activation == "sigmoid":
+        elif self.activation_fn == "sigmoid":
             return sigmoid(result)
 
-        elif self.activation == "relu":
+        elif self.activation_fn == "relu":
             return relu(result)
 
         else:
-            print(f"[ERROR] unsupported activation function {self.activation}")
+            print(f"[ERROR] unsupported activation function {self.activation_fn}")
             sys.exit()
 
 
 class fc_layer:
     """fully connected layer"""
 
-    def __init__(self, size, prev_size, activation):
-        self.size = size
-        self.units = [unit(prev_size, activation) for _ in range(self.size)]
+    def __init__(self, size, prev_size, activation_fn):
+        self.nunit = size
+        self.ninput = prev_size
+        # self.units = [unit(prev_size, activation_fn) for _ in range(self.nunit)]
+        self.weight_mat = np.random.rand(self.ninput, self.nunit) * 0.1
+        # self.weight_mat = np.zeros((self.ninput, self.nunit))
+        self.bias_mat = None  # TODO implement bias
+        self.activation_fn = activation_fn
 
     def step(self, values):
         """get layer output from input values
 
         Args:
-            values (ndarray): input values of (prev_size, m)
+            values (ndarray): input values of (input_size, m)
 
         Returns:
-            ndarray: layer output values of (size, m)
+            ndarray: layer output values of (nunit, m)
         """
-        # return np.array([unit.step(values) for unit in self.units]).reshape(-1, 1)
-        outputs = np.empty((0, values.shape[1]))
-        for unit in self.units:
-            outputs = np.vstack((outputs, unit.step(values)))
-        return outputs
+        return self.weight_mat.T @ values
 
     def print_info(self):
         print(
             f"""fully connected layer
-size: {self.size}
+size: {self.nunit}
 """
         )
 
@@ -162,39 +165,50 @@ class MLP:
         layer2 = self.layers[1]
 
         if gd_method == "stochastic":
-            for j in range(layer2.size):
-                layer2.units[0].weights[j] -= (
-                    learning_rate * d_squared_loss(y_pred, y_label) * values[1][j][0]
-                )
-            for j in range(layer1.units[j].nweights):
-                for k in range(layer1.size):
-                    layer1.units[k].weights[j][0] -= (
-                        learning_rate
-                        * d_squared_loss(y_pred, y_label)
-                        * layer2.units[0].weights[k]
-                        * values[1][k][0]
-                        * (1 - values[1][k][0])
-                        * X[j]
-                    )
+            pass  # fix stochastic GD
+
         elif gd_method == "batch":
             input_size = X.shape[1]
-            for j in range(layer2.size):
-                gradient = 0
-                for i in range(input_size):
-                    gradient += d_squared_loss(y_pred[i], y_label[i]) * values[1][j][0]
-                layer2.units[0].weights[j][0] -= learning_rate * gradient
-            for j in range(layer1.units[j].nweights):
-                for k in range(layer1.size):
-                    gradient = 0
-                    for i in range(input_size):
-                        gradient += (
-                            d_squared_loss(y_pred[i], y_label[i])
-                            * layer2.units[0].weights[k][0]
-                            * values[1][k][i]
-                            * (1 - values[1][k][i])
-                            * X[j][i]
-                        )
-                    layer1.units[k].weights[j][0] -= learning_rate * gradient
+
+            # layer 1 weights udpate
+            layer1.weight_mat -= (
+                learning_rate
+                * X
+                @ (
+                    (values[1].T @ (1 - values[1]))
+                    @ (y_pred.reshape(-1, 1) - y_label.reshape(-1, 1))
+                )
+                @ layer2.weight_mat.T
+            )
+
+            # for j in range(layer1.units[j].nweights):
+            #     for k in range(layer1.size):
+            #         gradient = 0
+            #         for i in range(input_size):
+            #             gradient += (
+            #                 d_squared_loss(y_pred[i], y_label[i])
+            #                 * layer2.weight_mat[k][0]
+            #                 * values[1][k][i]
+            #                 * (1 - values[1][k][i])
+            #                 * X[j][i]
+            #             )
+            #         # layer1.units[k].weights[j][0] -= learning_rate * gradient
+
+            # for j in range(layer1.ninput):
+            #     for k in range(layer1.nunit):
+            #         layer1.weight_mat[j][k] -= (
+            #             learning_rate
+            #             * layer2.weight_mat[j][0]
+            #             * np.dot(
+            #                 y_pred - y_label, X[j] * values[1][j] * (1 - values[1][j])
+            #             )
+            #         )
+
+            # layer 2 weights update
+            layer2.weight_mat -= (
+                learning_rate * values[1] @ (y_pred - y_label)
+            ).reshape(-1, 1)
+
         else:
             print(f"gradient descent method {gd_method} unsupported")
             sys.exit()
@@ -207,13 +221,14 @@ class MLP:
         for i in range(epoch):
             self.fit(X, Y, learning_rate, gd_method)
             result, values = self.predict(X)
-            # print(result)
+
+            print(f"{i}/{epoch}: {np.sum((result - Y.reshape(1, -1)) ** 2)}")
             results[i] = result
 
         turns = [i for i in range(1, epoch + 1)]
         training_errors = np.sum(0.5 * (results - Y.reshape(1, -1)) ** 2, axis=1)
-        for i in range(epoch):
-            print(training_errors[i])
+        # for i in range(epoch):
+        # print(training_errors[i])
         if visualizing:
             plt.plot(turns, training_errors)
             plt.xlabel("epoch")
@@ -230,7 +245,7 @@ class MLP:
             results = self.layers[i].step(results)
             values.append(results)
             if logging:
-                print(f"{i}: {results}\n")
+                print(f"{i+1}: {results}\n")
         return results[0], values
 
     def print_info(self):

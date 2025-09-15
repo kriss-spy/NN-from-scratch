@@ -1,7 +1,10 @@
 {
-    "name": "Debug NN-from-scratch.test",
-    "type": "python",
-    "request": "launch",
-    "module": "NN-from-scratch.test",
-    "console": "integratedTerminal"
+  "configurations": [
+    {
+      "name": "Python Debugger: Module",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "NN-from-scratch.test"
+    }
+  ]
 }
