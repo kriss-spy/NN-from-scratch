@@ -9,8 +9,8 @@ for learning purpose
 - [X] MLP training
 - [X] training visualization
 - [X] boston housing dataset preprocessing
-- [ ] batch GD
+- [X] batch GD
+- [ ] vectorization
 - [ ] MLP with flexible architecture
-- [ ] more data and vectorization
 - [ ] RNN
 - [ ] LSTM
