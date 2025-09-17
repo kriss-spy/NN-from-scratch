@@ -50,6 +50,14 @@ def d_relu(x):
     return 1 if x > 0 else 0
 
 
+def check_weight_explode(model):
+    v = 100
+    for layer in model.layers:
+        if np.max(layer.weight_mat) > v:
+            print(f"pamameter explosion detected!")
+            breakpoint()
+
+
 class unit:
     def __init__(self, nweights: int, activation_fn):
         self.nweights = nweights
@@ -101,7 +109,18 @@ class fc_layer:
         Returns:
             ndarray: layer output values of (nunit, m)
         """
-        return self.weight_mat.T @ values
+        # Linear pre-activation
+        z = self.weight_mat.T @ values  # (nunit, m)
+        # Apply activation
+        if self.activation_fn == "linear":
+            return z
+        elif self.activation_fn == "sigmoid":
+            return sigmoid(z)
+        elif self.activation_fn == "relu":
+            return relu(z)
+        else:
+            print(f"[ERROR] unsupported activation function {self.activation_fn}")
+            sys.exit()
 
     def print_info(self):
         print(
@@ -159,7 +178,7 @@ class MLP:
         except IndexError:
             print("[ERROR] layers empty, cannot pop layer\n")
 
-    def fit(self, X, y_label, learning_rate, gd_method):
+    def fit(self, X, y_label, learning_rate, gd_method, check_explode):
         y_pred, values = self.predict(X)
         layer1 = self.layers[0]
         layer2 = self.layers[1]
@@ -181,51 +200,47 @@ class MLP:
                 @ layer2.weight_mat.T
             )
 
-            # for j in range(layer1.units[j].nweights):
-            #     for k in range(layer1.size):
-            #         gradient = 0
-            #         for i in range(input_size):
-            #             gradient += (
-            #                 d_squared_loss(y_pred[i], y_label[i])
-            #                 * layer2.weight_mat[k][0]
-            #                 * values[1][k][i]
-            #                 * (1 - values[1][k][i])
-            #                 * X[j][i]
-            #             )
-            #         # layer1.units[k].weights[j][0] -= learning_rate * gradient
-
-            # for j in range(layer1.ninput):
-            #     for k in range(layer1.nunit):
-            #         layer1.weight_mat[j][k] -= (
-            #             learning_rate
-            #             * layer2.weight_mat[j][0]
-            #             * np.dot(
-            #                 y_pred - y_label, X[j] * values[1][j] * (1 - values[1][j])
-            #             )
-            #         )
-
             # layer 2 weights update
             layer2.weight_mat -= (
                 learning_rate * values[1] @ (y_pred - y_label)
             ).reshape(-1, 1)
 
+            if check_explode:
+                check_weight_explode(self)
+
         else:
             print(f"gradient descent method {gd_method} unsupported")
             sys.exit()
 
-    def train(self, X, Y, epoch, learning_rate, visualizing=False, gd_method="batch"):
+    def train(
+        self,
+        X,
+        Y,
+        epoch,
+        learning_rate,
+        visualizing=False,
+        gd_method="batch",
+        error_goal=1.0,
+        check_explode=False,
+    ):
         input_size = X.shape[1]
 
         print("train start\n")
         results = np.zeros((epoch, input_size))
-        for i in range(epoch):
-            self.fit(X, Y, learning_rate, gd_method)
+        finished = 0
+        while finished < epoch:
+            self.fit(X, Y, learning_rate, gd_method, check_explode)
             result, values = self.predict(X)
+            finished += 1
 
-            print(f"{i}/{epoch}: {np.sum((result - Y.reshape(1, -1)) ** 2)}")
-            results[i] = result
+            if squared_loss(result, Y) <= error_goal:
+                break
 
-        turns = [i for i in range(1, epoch + 1)]
+            print(f"{finished}/{epoch}: {squared_loss(result, Y.reshape(1, -1))}")
+            results[finished - 1] = result
+
+        turns = [i for i in range(1, finished + 1)]
+        results = results[0:finished]
         training_errors = np.sum(0.5 * (results - Y.reshape(1, -1)) ** 2, axis=1)
         # for i in range(epoch):
         # print(training_errors[i])
